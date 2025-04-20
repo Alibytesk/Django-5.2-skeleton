@@ -1,5 +1,5 @@
 {% load static %}
-{% block title %} {{ request.resolver_match.url_name }} {% endblock %}
+{% block title %} {{ request.resolver_match.url_name|title }} {% endblock %}
 {% block content %}
     <form method="post">
     {% csrf_token %}

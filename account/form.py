@@ -1,7 +1,39 @@
 from django import forms
 from django.contrib.auth.forms import ReadOnlyPasswordHashField
 from account.models import User
+from django.core.validators import MaxLengthValidator, EmailValidator
+from account.validation import *
 import re
+
+class OtpCheckForm(forms.Form):
+    code = forms.CharField(
+        validators=(MaxLengthValidator(4),),
+        widget=forms.TextInput(attrs={'placeholder':'code', 'class':'form-control'})
+    )
+    username = forms.CharField(
+        validators=(MaxLengthValidator(16),),
+        widget=forms.TextInput(attrs={'placeholder':'username', 'class':'form-control'})
+    )
+    email = forms.CharField(
+        validators=(EmailValidator,),
+        widget=forms.EmailInput(attrs={'placeholder':'Email Address', 'class':'form-control'})
+    )
+    password = forms.CharField(widget=forms.PasswordInput(attrs={'placeholder':'password', 'class':'form-control'}))
+    confirm_password = forms.CharField(widget=forms.PasswordInput(attrs={'placeholder':'confirm-password', 'class':'form-control'}))
+
+    def clean_password(self):
+        PasswordValidation.password_validation(self.cleaned_data.get('password'))
+
+
+    def clean(self):
+        cleaned_data = self.cleaned_data
+        password = cleaned_data.get('password')
+        confirm_password = cleaned_data.get('confirm_password')
+        if confirm_password != password and confirm_password and password:
+            self.add_error('password', 'password does not Match')
+        else:
+            return password
+
 
 class UserCreationForm(forms.ModelForm):
     password = forms.CharField(
@@ -54,3 +86,12 @@ class LoginForm(forms.Form):
                 raise forms.ValidationError('username must contain at least 4 character')
             return username
         raise forms.ValidationError('invalid username')
+
+class RegisterForm(forms.Form):
+    phone = forms.CharField(
+        validators=(MaxLengthValidator(11), PhoneValidator.is_phone_start_with_09,),
+        widget=forms.NumberInput(attrs={
+            'placeholder':'Phone number',
+            'class':'form-control',
+        })
+    )
