@@ -13,4 +13,10 @@
     {% endfor %}
     <button type="submit" class="btn btn-success">{{ request.resolver_match.url_name }}</button>
     </form>
+    {% if request.resolver_match.url_name == 'login' %}
+        <a href="">register</a> <br />
+        <a href="">forgot password</a>
+    {% elif request.resolver_match.url_name == 'register' %}
+        <a href="">login</a>
+    {% endif %}
 {% endblock %}

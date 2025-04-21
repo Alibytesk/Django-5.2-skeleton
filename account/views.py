@@ -1,7 +1,8 @@
 from django.shortcuts import render, redirect
 from django.views.generic.base import View
 from account.models import User, Otp
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import mixins
 from account.form import *
 from django.contrib import messages
 from django.utils.crypto import get_random_string
@@ -96,6 +97,45 @@ class LoginView(View):
                     return redirect('/admin/')
                 else:
                     form.add_error('username', 'invalid username or password')
+            return render(request, 'account/authenticate.html', context={'form':form})
+        else:
+            return redirect('/')
+
+class LogoutView(View):
+
+    def get(self, request):
+        logout(request)
+        messages.success(request, 'you are logged out')
+        return redirect('/')
+
+class ChangePasswordView(mixins.LoginRequiredMixin, View):
+
+    def get(self, request):
+        if request.user.is_authenticated:
+            form = ChangePasswordForm()
+            return render(request, 'account/authenticate.html', context={'form':form})
+        else:
+            return redirect('/')
+
+    def post(self, request):
+        if request.user.is_authenticated:
+            form = ChangePasswordForm(data=request.POST)
+            if form.is_valid():
+                cleaned_data = form.cleaned_data
+                if cleaned_data.get('password1') == cleaned_data.get('confirm_password'):
+                    user = User.objects.get(phone=request.user.phone)
+                    if user.check_password(cleaned_data.get('current_password')):
+                        if not cleaned_data.get('current_password') == cleaned_data.get('password1'):
+                            user.set_password(cleaned_data['password1'])
+                            user.save()
+                            messages.success(request, 'successfully updated password')
+                            return redirect('/admin/')
+                        else:
+                            form.add_error('password1', 'current password and new password are same')
+                    else:
+                        form.add_error('current_password', 'invalid password')
+                else:
+                    form.add_error('password1', 'password does not Match')
             return render(request, 'account/authenticate.html', context={'form':form})
         else:
             return redirect('/')

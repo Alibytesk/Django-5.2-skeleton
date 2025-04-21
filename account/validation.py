@@ -3,12 +3,13 @@ from django import forms
 class PasswordValidation:
     @staticmethod
     def password_validation(password):
-        special_character, errors = '!@#$%^&*', list()
+        special_character = '!@#$%^&*'
+        errors = list()
         if len(password) < 8:
             errors.append('password must be at least 8 character')
         if not any(i in special_character for i in password):
             errors.append('password must contain at least one special character')
-        if not any(i.istitle() for i in password):
+        if not any(i.islower() for i in password):
             errors.append('password must contain at least one lowercase character')
         if not any(i.isupper() for i in password):
             errors.append('password must contain at least one uppercase character')

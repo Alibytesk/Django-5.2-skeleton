@@ -95,3 +95,37 @@ class RegisterForm(forms.Form):
             'class':'form-control',
         })
     )
+
+class ChangePasswordForm(forms.Form):
+    current_password = forms.CharField(
+        required=True,
+        widget=forms.PasswordInput(attrs={'placeholder':'current password', 'class':'form-control'})
+    )
+    password1 = forms.CharField(
+        required=True,
+        widget=forms.PasswordInput(attrs={'placeholder':'new password', 'class':'form-control'})
+    )
+    confirm_password = forms.CharField(
+        required=True,
+        widget=forms.PasswordInput(attrs={'placeholder':'confirm password', 'class':'form-control'})
+    )
+
+    def clean_password1(self):
+        password1 = self.cleaned_data.get('password1')
+        special_character = '!@#$%^&*'
+        errors = list()
+        if len(password1) < 8:
+            errors.append('password must be at least 8 character')
+        if not any(i in special_character for i in password1):
+            errors.append('password must contain at least one special character')
+        if not any(i.islower() for i in password1):
+            errors.append('password must contain at least one lowercase character')
+        if not any(i.isupper() for i in password1):
+            errors.append('password must contain at least one uppercase character')
+        if not any(i.isdigit() for i in password1):
+            errors.append('password must contain at least one number')
+
+        if not errors:
+            return password1
+        else:
+            raise forms.ValidationError(errors)
