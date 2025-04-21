@@ -5,7 +5,13 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import mixins
 from account.form import *
 from django.contrib import messages
+from django.contrib.auth.tokens import default_token_generator
 from django.utils.crypto import get_random_string
+from django.template.loader import render_to_string
+from django.core.mail import EmailMessage
+from django.contrib.sites.shortcuts import get_current_site
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes
 from django.urls import reverse
 from random import randint
 
@@ -136,6 +142,88 @@ class ChangePasswordView(mixins.LoginRequiredMixin, View):
                         form.add_error('current_password', 'invalid password')
                 else:
                     form.add_error('password1', 'password does not Match')
+            return render(request, 'account/authenticate.html', context={'form':form})
+        else:
+            return redirect('/')
+
+class ForgotPasswordView(View):
+
+    def get(self, request):
+        if not request.user.is_authenticated:
+            form = ForgotPasswordForm()
+            return render(request, 'account/authenticate.html', context={'form':form})
+        else:
+            return redirect('/')
+
+    def post(self, request):
+        if not request.user.is_authenticated:
+            form = ForgotPasswordForm(data=request.POST)
+            if form.is_valid():
+                cleaned_data = form.cleaned_data
+                if User.objects.filter(email__exact=cleaned_data['email']).exists():
+                    user = User.objects.get(email=cleaned_data['email'])
+                    subject, template_name, context = 'reset your password', 'account/reset_your_password.html', {
+                        'user': user,
+                        'domain': get_current_site(request),
+                        'uid': urlsafe_base64_encode(force_bytes(user.pk)),
+                        'token': default_token_generator.make_token(user)
+                    }
+                    message = render_to_string(template_name=template_name, context=context)
+                    EmailMessage(subject, message, to=[cleaned_data.get('email')]).send()
+                    messages.success(request, 'Password reset email has been sent to your email address')
+                    return redirect('account:login')
+                else:
+                    form.add_error('email', 'email is not exists')
+            return render(request, 'account/authenticate.html', context={'form':form})
+        else:
+            return redirect('/')
+
+class ResetPasswordView(View):
+
+    def get(self, request, uidb64, token):
+        try:
+            u_id = urlsafe_base64_decode(uidb64).decode()
+            user = User._default_manager.get(pk=u_id)
+        except(User.DoesNotExist, TypeError, ValueError, OverflowError):
+            user = None
+        if user is not None and default_token_generator.check_token(user, token):
+            request.session['uid'] = u_id
+            messages.success(request, 'reset your password')
+            return redirect('account:setpassword')
+        else:
+            messages.error(request, 'this link has been expired')
+            return redirect('account:login')
+
+class SetPasswordView(View):
+
+    def get(self, request):
+        if request.session['uid'] and not request.user.is_authenticated:
+            context = {
+                'form': SetPasswordForm(request.user)
+            }
+            return render(request, 'account/authenticate.html', context)
+        else:
+            return redirect('/')
+
+    def post(self, request):
+        if request.session['uid'] and not request.user.is_authenticated:
+            form = SetPasswordForm(request.user, data=request.POST)
+            if form.is_valid():
+                cleaned_data = form.cleaned_data
+                if User.objects.filter(pk=request.session['uid']).exists():
+                    user = User.objects.get(pk=request.session['uid'])
+                    if not user.check_password(cleaned_data['new_password1']):
+                        if cleaned_data.get('new_password1') == cleaned_data.get('new_password2'):
+                            user.set_password(cleaned_data.get('new_password1'))
+                            user.save()
+                            messages.success(request, 'password reset successfully')
+                            return redirect('account:login')
+                        else:
+                            form.add_error('new_password1', 'password does not Match')
+                    else:
+                        form.add_error('new_password1', 'password is same last password')
+                else:
+                    return redirect('/')
             return render(request, 'account/authenticate.html', context={'form':form})
         else:
             return redirect('/')

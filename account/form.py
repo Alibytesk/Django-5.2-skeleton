@@ -1,5 +1,5 @@
 from django import forms
-from django.contrib.auth.forms import ReadOnlyPasswordHashField
+from django.contrib.auth.forms import ReadOnlyPasswordHashField, SetPasswordMixin
 from account.models import User
 from django.core.validators import MaxLengthValidator, EmailValidator
 from account.validation import *
@@ -129,3 +129,27 @@ class ChangePasswordForm(forms.Form):
             return password1
         else:
             raise forms.ValidationError(errors)
+
+
+class ForgotPasswordForm(forms.Form):
+    email = forms.CharField(
+        required=True,
+        validators=(EmailValidator,),
+        widget=forms.EmailInput(attrs={'placeholder':'email', 'class':'form-control'})
+    )
+
+class SetPasswordForm(SetPasswordMixin, forms.Form):
+    new_password1, new_password2 = SetPasswordMixin.create_password_fields(
+        label1='new password', label2='new password confirmation'
+    )
+    def __init__(self, user, *args, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        self.validate_passwords('new_password1', 'new_password2')
+        self.validate_password_for_user(self.user, 'new_password2')
+        return super().clean()
+
+    def save(self, commit=True):
+        return self.set_password_and_save(self.user, 'new_password1', commit=commit)

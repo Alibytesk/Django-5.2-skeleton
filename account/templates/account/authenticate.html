@@ -18,5 +18,8 @@
         <a href="">forgot password</a>
     {% elif request.resolver_match.url_name == 'register' %}
         <a href="">login</a>
+    {% elif request.resolver_match.url_name == 'forgot_password' %}
+        <a href="">register</a> <br />
+        <a href="">login</a>
     {% endif %}
 {% endblock %}
