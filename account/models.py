@@ -129,3 +129,12 @@ class Otp(models.Model):
     @staticmethod
     def clean_otp():
         Otp.objects.filter(created_at__lte=(timezone.now() - timedelta(minutes=5))).delete()
+
+class EmailCode(models.Model):
+    user = models.OneToOneField(User, related_name='EmailCode', on_delete=models.CASCADE, null=False, blank=False)
+    code = models.CharField(max_length=6)
+
+class ChangeEmailCode(models.Model):
+    user = models.OneToOneField(User, related_name='changeemailcode', on_delete=models.CASCADE, null=False, blank=False)
+    code = models.CharField(max_length=6)
+    step2 = models.BooleanField(default=False)

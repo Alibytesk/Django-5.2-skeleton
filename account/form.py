@@ -5,6 +5,25 @@ from django.core.validators import MaxLengthValidator, EmailValidator
 from account.validation import *
 import re
 
+class UserUpdateForm(forms.ModelForm):
+    def __init__(self, request, *args, **kwargs):
+        super(UserUpdateForm, self).__init__(*args, **kwargs)
+        self.fields['phone'].disabled = True
+        self.fields['username'].disabled = True
+        if request.user.is_email_verify:
+            self.fields['email'].disabled = True
+
+    class Meta:
+        model = User
+        fields = ('phone', 'username', 'email', 'fname', 'lname', 'image')
+
+    phone = forms.CharField(widget=forms.TextInput(attrs={'placeholder':'Phone Number', 'class':'form-control'}), label='phone')
+    username = forms.CharField(widget=forms.TextInput(attrs={'placeholder':'username', 'class':'form-control'}), label='username')
+    email = forms.CharField(widget=forms.EmailInput(attrs={'placeholder':'email', 'class':'form-control'}), label='email')
+    fname = forms.CharField(widget=forms.TextInput(attrs={'placeholder':'first name', 'class':'form-control'}))
+    lname = forms.CharField(widget=forms.TextInput(attrs={'placeholder':'last name', 'class':'form-control'}))
+    image = forms.ImageField(required=False,widget=forms.ClearableFileInput(attrs={'placeholder':'image'}), help_text='input image', label='image')
+
 class OtpCheckForm(forms.Form):
     code = forms.CharField(
         validators=(MaxLengthValidator(4),),
@@ -153,3 +172,49 @@ class SetPasswordForm(SetPasswordMixin, forms.Form):
 
     def save(self, commit=True):
         return self.set_password_and_save(self.user, 'new_password1', commit=commit)
+
+class EmailVerifyForm(forms.ModelForm):
+
+    # def __new__(cls, *args, **kwargs):
+    #     return super().__new__(cls)
+
+    def __init__(self, request=None, *args, **kwargs):
+        super(EmailVerifyForm, self).__init__(*args, **kwargs)
+        self.fields['email'].disabled = True
+
+    email = forms.CharField(
+        validators=(EmailValidator,),
+        widget=forms.EmailInput(attrs={'class':'form-control'}),
+        label='Email Address'
+    )
+    code = forms.CharField(
+        validators=(MaxLengthValidator(6),),
+        widget=forms.NumberInput(attrs={'class':'form-control', 'placeholder':'code'}),
+        label='verify code'
+    )
+    class Meta:
+        model = User
+        fields = ('email',)
+
+class ChangeEmailForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['email'].disabled = True
+
+    class Meta:
+        model = User
+        fields = ('email',)
+
+    email = forms.CharField(widget=forms.EmailInput(attrs={'class':'form-control'}))
+    code = forms.CharField(
+        validators=(MaxLengthValidator(6),),
+        widget=forms.NumberInput(attrs={'class':'form-control', 'placeholder':'code'}),
+        label='code'
+    )
+
+class SetNewEmailForm(forms.Form):
+    email = forms.CharField(
+        validators=(EmailValidator,),
+        widget=forms.EmailInput(attrs={'placeholder':'new email', 'class':'form-control'}),
+        label='new email'
+    )

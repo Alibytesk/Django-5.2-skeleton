@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
 from django.views.generic.base import View
-from account.models import User, Otp
+from account.models import User, Otp, EmailCode, ChangeEmailCode
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import mixins
 from account.form import *
@@ -227,3 +227,145 @@ class SetPasswordView(View):
             return render(request, 'account/authenticate.html', context={'form':form})
         else:
             return redirect('/')
+
+class UserUpdateView(View):
+
+    def get(self, request):
+        if request.user.is_authenticated:
+            form = UserUpdateForm(instance=request.user, request=request)
+            return render(request, 'account/profile.html', context={'form':form})
+        else:
+            return redirect('/')
+
+    def post(self, request):
+        if request.user.is_authenticated:
+            form = UserUpdateForm(instance=request.user, data=request.POST, request=request)
+            if form.is_valid():
+                form.save(commit=True)
+                return redirect('account:dashboard')
+            return render(request, 'account/profile.html', context={'form':form})
+        else:
+            return redirect('/')
+
+class EmailCodeGenerator(mixins.LoginRequiredMixin, View):
+
+    def get(self, request):
+        if not request.user.is_email_verify and request.user.is_authenticated:
+            if EmailCode.objects.filter(user=request.user).exists():
+                EmailCode.objects.get(user=request.user).delete()
+            code = randint(121212, 989898)
+            subject, context = 'email verify', dict({
+                'user':request.user,
+                'code': code
+            })
+            EmailMessage(
+                subject,
+                render_to_string(template_name='account/email_verify.html', context=context),
+                to=[request.user.email]
+            ).send()
+            EmailCode.objects.create(code=code, user=request.user)
+            messages.success(request, 'email verification has been sent to your email address')
+            return redirect('account:email_verify')
+        else:
+            return redirect('account:dashboard')
+
+class EmailVerifyView(mixins.LoginRequiredMixin, View):
+
+    def get(self, request):
+        if not request.user.is_email_verify and request.user.is_authenticated:
+            form = EmailVerifyForm(instance=request.user)
+            return render(request, 'account/authenticate.html', context={'form':form})
+        else:
+            return redirect('account:dashboard')
+
+    def post(self, request):
+        if not request.user.is_email_verify and request.user.is_authenticated:
+            form = EmailVerifyForm(instance=request.user, data=request.POST)
+            if form.is_valid():
+                cleaned_data = form.cleaned_data
+                if EmailCode.objects.filter(code=cleaned_data['code'], user=request.user).exists():
+                    request.user.is_email_verify = True
+                    request.user.save()
+                    EmailCode.objects.get(code=cleaned_data['code'], user=request.user).delete()
+                    return redirect('account:dashboard')
+                else:
+                    form.add_error('code', 'invalid code')
+            return render(request, 'account/authenticate.html', context={'form':form})
+        else:
+            return redirect('account:dashboard')
+
+class ChangeEmailCodeGenerator(mixins.LoginRequiredMixin, View):
+
+    def get(self, request):
+        if request.user.is_email_verify and request.user.is_authenticated:
+            if ChangeEmailCode.objects.filter(user=request.user):
+                ChangeEmailCode.objects.get(user=request.user).delete()
+            code = randint(111111, 999999)
+            subject, context = 'change email', dict({
+                'user':request.user,
+                'code':code,
+            })
+            EmailMessage(
+                subject,
+                render_to_string('account/change_email.html', context=context),
+                to=[request.user.email]
+            ).send()
+            ChangeEmailCode.objects.create(user=request.user, code=code).save()
+            messages.success(request, 'email verification has been sent to your email address')
+            return redirect('account:change_email')
+        else:
+            return redirect('account:dashboard')
+
+
+class ChangeEmailView(mixins.LoginRequiredMixin, View):
+
+    def get(self, request):
+        if ChangeEmailCode.objects.filter(user=request.user).exists() and request.user.is_email_verify:
+            form = ChangeEmailForm(instance=request.user)
+            return render(request, 'account/authenticate.html', context={'form':form})
+        else:
+            return redirect('account:dashboard')
+
+    def post(self, request):
+        if ChangeEmailCode.objects.filter(user=request.user).exists() and request.user.is_email_verify:
+            form = ChangeEmailForm(instance=request.user, data=request.POST)
+            if form.is_valid():
+                cleaned_data = form.cleaned_data
+                if ChangeEmailCode.objects.filter(user=request.user, code=cleaned_data['code']).exists():
+                    ch = ChangeEmailCode.objects.get(user=request.user, code=cleaned_data['code'])
+                    ch.step2 = True
+                    ch.save()
+                    return redirect('account:set_email')
+                else:
+                    form.add_error('code', 'invalid code')
+            return render(request, 'account/authenticate.html', context={'form':form})
+        else:
+            return redirect('account:dashboard')
+
+class SetEmailView(mixins.LoginRequiredMixin, View):
+
+    def get(self, request):
+        if ChangeEmailCode.objects.filter(user=request.user, step2=True).exists():
+            form = SetNewEmailForm()
+            return render(request, 'account/authenticate.html', context={'form':form})
+        else:
+            return redirect('account:dashboard')
+
+    def post(self, request):
+        if ChangeEmailCode.objects.filter(user=request.user).exists():
+            ch = ChangeEmailCode.objects.get(user=request.user)
+            if ch.step2:
+                form = SetNewEmailForm(data=request.POST)
+                if form.is_valid():
+                    cleaned_data = form.cleaned_data
+                    if not User.objects.filter(email=cleaned_data['email']).exists():
+                        request.user.email = cleaned_data['email']
+                        request.user.is_email_verify = False
+                        request.user.save()
+                        ChangeEmailCode.objects.get(user=request.user, step2=True).delete()
+                        return redirect('account:dashboard')
+                    else:
+                        form.add_error('email', 'this email is already exists')
+            return render(request, 'account/authenticate.html', context={'form':form})
+        else:
+            return redirect('account:dashboard')
